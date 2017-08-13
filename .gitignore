@@ -1,0 +1,11 @@
+.idea
+*.iml
+
+.directory
+Thumbs.db
+.DS_Store
+
+jdks
+
+target
+*build*
