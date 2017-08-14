@@ -56,6 +56,26 @@ public class Window {
 		return getInstance(id, false);
 	}
 	
+	protected void onClose() {
+	}
+	
+	protected void onMouseMove(int x, int y, int rootX, int rootY) {
+	}
+	
+	private static void handleClose(long id) {
+		Window window = getInstance(id);
+		if (window != null) {
+			window.onClose();
+		}
+	}
+	
+	private static void handleMouseMove(long id, int x, int y, int rootX, int rootY) {
+		Window window = getInstance(id);
+		if (window != null) {
+			window.onMouseMove(x, y, rootX, rootY);
+		}
+	}
+	
 	public static final class Flags {
 		
 		private Flags() {

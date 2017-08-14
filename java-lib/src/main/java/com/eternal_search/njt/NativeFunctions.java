@@ -18,7 +18,9 @@ final class NativeFunctions {
 	
 	static native void deInit();
 	
-	static native Event waitForEvent();
+	static native void runEventLoop();
+	
+	static native void quitEventLoop();
 	
 	static native long createWindow(String title, int x, int y, int width, int height, int flags,
 									int parent);
@@ -32,12 +34,5 @@ final class NativeFunctions {
 	static native void setWindowTitle(long window, String title);
 	
 	static native void moveWindow(long window, int x, int y, int width, int height);
-	
-	public static class Event {
-		
-		public Event() {
-		}
-		
-	}
 	
 }

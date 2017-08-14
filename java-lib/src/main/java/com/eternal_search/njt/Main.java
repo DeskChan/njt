@@ -7,18 +7,24 @@ public final class Main {
 		NativeFunctions.loadLibrary();
 		NativeFunctions.init();
 		Window window = new Window("Java Native Toolkit Demo", 0, 0,
-				400, 300, 0);
+				400, 300, 0) {
+			
+			@Override
+			protected void onClose() {
+				System.err.println("onClose()");
+				NativeFunctions.quitEventLoop();
+			}
+			
+			@Override
+			protected void onMouseMove(int x, int y, int rootX, int rootY) {
+				System.err.println("onMouseMove(" + x + ", " + y + ", " + rootX + ", " + rootY + ")");
+			}
+			
+		};
 		window.show();
-		runEventLoop();
+		NativeFunctions.runEventLoop();
 		window.destroy();
 		NativeFunctions.deInit();
-	}
-	
-	public static void runEventLoop() {
-		NativeFunctions.Event event;
-		while ((event = NativeFunctions.waitForEvent()) != null) {
-			// TODO
-		}
 	}
 	
 }
