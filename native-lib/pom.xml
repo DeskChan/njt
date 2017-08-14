@@ -10,8 +10,7 @@
 		<version>1.0</version>
 		<relativePath>../pom.xml</relativePath>
 	</parent>
-	
-	<groupId>com.eternal_search.njt-group</groupId>
+
 	<artifactId>njt-binary</artifactId>
 	<version>1.0</version>
 	

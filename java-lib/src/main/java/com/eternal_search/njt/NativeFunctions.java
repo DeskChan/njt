@@ -2,7 +2,7 @@ package com.eternal_search.njt;
 
 import java.io.File;
 
-class NativeFunctions {
+final class NativeFunctions {
 	
 	private NativeFunctions() {
 	}
@@ -18,9 +18,10 @@ class NativeFunctions {
 	
 	static native void deInit();
 	
-	static native void waitForEvent();
+	static native Event waitForEvent();
 	
-	static native long createWindow(String title, int x, int y, int width, int height, int flags);
+	static native long createWindow(String title, int x, int y, int width, int height, int flags,
+									int parent);
 	
 	static native void destroyWindow(long window);
 	
@@ -31,5 +32,12 @@ class NativeFunctions {
 	static native void setWindowTitle(long window, String title);
 	
 	static native void moveWindow(long window, int x, int y, int width, int height);
+	
+	public static class Event {
+		
+		public Event() {
+		}
+		
+	}
 	
 }
