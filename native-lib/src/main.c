@@ -17,6 +17,29 @@ JNIEnv *javaEnv;
 jclass javaWindowClass;
 jmethodID javaWindowHandleCloseMethod;
 jmethodID javaWindowHandleMouseMoveMethod;
+jmethodID javaWindowHandleMouseDownMethod;
+jmethodID javaWindowHandleMouseUpMethod;
+jclass javaRectClass;
+jmethodID javaRectConstructor;
+
+void handleCloseEvent(jlong window) {
+	(*javaEnv)->CallStaticVoidMethod(javaEnv, javaWindowClass, javaWindowHandleCloseMethod, window);
+}
+
+void handleMouseMoveEvent(jlong window, jint x, jint y, jint rootX, jint rootY, jint buttons) {
+	(*javaEnv)->CallStaticVoidMethod(javaEnv, javaWindowClass, javaWindowHandleMouseMoveMethod,
+									 window, x, y, rootX, rootY, buttons);
+}
+
+void handleMouseDownEvent(jlong window, jint x, jint y, jint rootX, jint rootY, jint buttons) {
+	(*javaEnv)->CallStaticVoidMethod(javaEnv, javaWindowClass, javaWindowHandleMouseDownMethod,
+									 window, x, y, rootX, rootY, buttons);
+}
+
+void handleMouseUpEvent(jlong window, jint x, jint y, jint rootX, jint rootY, jint buttons) {
+	(*javaEnv)->CallStaticVoidMethod(javaEnv, javaWindowClass, javaWindowHandleMouseUpMethod,
+									 window, x, y, rootX, rootY, buttons);
+}
 
 #ifdef USE_XCB
 
@@ -28,14 +51,34 @@ xcb_screen_t *screen;
 void handleEvent(xcb_generic_event_t *event) {
 	switch (event->response_type & ~0x80) {
 		case XCB_DESTROY_NOTIFY:
-			(*javaEnv)->CallStaticVoidMethod(javaEnv, javaWindowClass, javaWindowHandleCloseMethod,
-											 (jlong) ((xcb_destroy_notify_event_t*) event)->window);
+			handleCloseEvent((jlong) ((xcb_destroy_notify_event_t*) event)->window);
 			break;
 		case XCB_MOTION_NOTIFY: {
 			xcb_motion_notify_event_t *e = (xcb_motion_notify_event_t*) event;
-			(*javaEnv)->CallStaticVoidMethod(javaEnv, javaWindowClass, javaWindowHandleMouseMoveMethod,
-											 (jlong) e->event, (jint) e->event_x, (jint) e->event_y,
-											 (jint) e->root_x, (jint) e->root_y);
+			jint buttons = 0;
+			if (e->state & XCB_BUTTON_MASK_1) {
+				buttons |= 1 << 0;
+			}
+			if (e->state & XCB_BUTTON_MASK_2) {
+				buttons |= 1 << 1;
+			}
+			if (e->state & XCB_BUTTON_MASK_3) {
+				buttons |= 1 << 2;
+			}
+			handleMouseMoveEvent((jlong) e->event, (jint) e->event_x, (jint) e->event_y,
+											 (jint) e->root_x, (jint) e->root_y, buttons);
+			break;
+		}
+		case XCB_BUTTON_PRESS: {
+			xcb_button_press_event_t *e = (xcb_button_press_event_t*) event;
+			handleMouseDownEvent((jlong) e->event, (jint) e->event_x, (jint) e->event_y,
+								 (jint) e->root_x, (jint) e->root_y, 1 << (e->detail - 1));
+			break;
+		}
+		case XCB_BUTTON_RELEASE: {
+			xcb_button_release_event_t *e = (xcb_button_release_event_t*) event;
+			handleMouseUpEvent((jlong) e->event, (jint) e->event_x, (jint) e->event_y,
+								 (jint) e->root_x, (jint) e->root_y, 1 << (e->detail - 1));
 			break;
 		}
 		default:;
@@ -53,24 +96,62 @@ void handleEvent(xcb_generic_event_t *event) {
 HINSTANCE hInstance;
 WNDCLASSEX wndClass;
 
-LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-	jlong window_id = (jlong) (size_t) hWnd;
+static void handleMouseEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+	jlong wnd = (jlong) (size_t) hWnd;
+	jint x = lParam & 0xFFFF;
+	jint y = lParam >> 16;
+	POINT rootPos;
+	GetCursorPos(&rootPos);
 	switch (uMsg) {
-		case WM_CLOSE:
-			(*javaEnv)->CallStaticVoidMethod(javaEnv, javaWindowClass, javaWindowHandleCloseMethod,
-				window_id);
+		case WM_LBUTTONDOWN:
+			handleMouseDownEvent(wnd, x, y, rootPos.x, rootPos.y, 1 << 0);
+			break;
+		case WM_LBUTTONUP:
+			handleMouseUpEvent(wnd, x, y, rootPos.x, rootPos.y, 1 << 0);
+			break;
+		case WM_MBUTTONDOWN:
+			handleMouseDownEvent(wnd, x, y, rootPos.x, rootPos.y, 1 << 1);
+			break;
+		case WM_MBUTTONUP:
+			handleMouseUpEvent(wnd, x, y, rootPos.x, rootPos.y, 1 << 1);
+			break;
+		case WM_RBUTTONDOWN:
+			handleMouseDownEvent(wnd, x, y, rootPos.x, rootPos.y, 1 << 2);
+			break;
+		case WM_RBUTTONUP:
+			handleMouseUpEvent(wnd, x, y, rootPos.x, rootPos.y, 1 << 2);
 			break;
 		case WM_MOUSEMOVE: {
-			POINT pos;
-			GetCursorPos(&pos);
-			jint x = lParam & 0xFFFF;
-			jint y = lParam >> 16;
-			jint rootX = pos.x;
-			jint rootY = pos.y;
-			(*javaEnv)->CallStaticVoidMethod(javaEnv, javaWindowClass, javaWindowHandleMouseMoveMethod,
-											 window_id, x, y, rootX, rootY);
+			jint buttons = 0;
+			if (wParam & MK_LBUTTON) {
+				buttons |= 1 << 0;
+			}
+			if (wParam & MK_MBUTTON) {
+				buttons |= 1 << 1;
+			}
+			if (wParam & MK_RBUTTON) {
+				buttons |= 1 << 2;
+			}
+			handleMouseMoveEvent(wnd, x, y, rootPos.x, rootPos.y, buttons);
 			break;
 		}
+	}
+}
+
+LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+	switch (uMsg) {
+		case WM_CLOSE:
+			handleCloseEvent((jlong) (size_t) hWnd);
+			break;
+		case WM_MOUSEMOVE:
+		case WM_LBUTTONDOWN:
+		case WM_LBUTTONUP:
+		case WM_RBUTTONDOWN:
+		case WM_RBUTTONUP:
+		case WM_MBUTTONDOWN:
+		case WM_MBUTTONUP:
+			handleMouseEvent(hWnd, uMsg, wParam, lParam);
+			return 0;
 	}
 	return DefWindowProc(hWnd, uMsg, wParam, lParam);
 }
@@ -82,7 +163,13 @@ JNIEXPORT void JNICALL Java_com_eternal_1search_njt_NativeFunctions_init(JNIEnv 
 	javaWindowClass = (*env)->FindClass(env, "com/eternal_search/njt/Window");
 	javaWindowHandleCloseMethod = (*env)->GetStaticMethodID(env, javaWindowClass, "handleClose", "(J)V");
 	javaWindowHandleMouseMoveMethod = (*env)->GetStaticMethodID(env, javaWindowClass, "handleMouseMove",
-																"(JIIII)V");
+																"(JIIIII)V");
+	javaWindowHandleMouseDownMethod = (*env)->GetStaticMethodID(env, javaWindowClass, "handleMouseDown",
+																"(JIIIII)V");
+	javaWindowHandleMouseUpMethod = (*env)->GetStaticMethodID(env, javaWindowClass, "handleMouseUp",
+																"(JIIIII)V");
+	javaRectClass = (*env)->FindClass(env, "com/eternal_search/njt/geom/Rect");
+	javaRectConstructor = (*env)->GetMethodID(env, javaRectClass, "<init>", "(IIII)V");
 #ifdef USE_XCB
 	fprintf(stderr, "NJT: Init (XCB backend)\n");
 	connection = xcb_connect(NULL, NULL);
@@ -233,4 +320,37 @@ JNIEXPORT void JNICALL Java_com_eternal_1search_njt_NativeFunctions_moveWindow(J
 #ifdef USE_WINAPI
 	MoveWindow((HWND) (size_t) window, x, y, width, height, TRUE);
 #endif
+}
+
+JNIEXPORT jclass JNICALL Java_com_eternal_1search_njt_NativeFunctions_getWindowRect(JNIEnv *env,
+																					jclass cls,
+																					jlong window) {
+	jclass result = 0;
+#ifdef USE_XCB
+	xcb_get_geometry_cookie_t cookie1 = xcb_get_geometry(connection, (xcb_drawable_t) window);
+	xcb_get_geometry_reply_t *geom = xcb_get_geometry_reply(connection, cookie1, NULL);
+	if (geom) {
+		xcb_translate_coordinates_cookie_t cookie2 =
+				xcb_translate_coordinates(connection, (xcb_window_t) window, screen->root,
+										  geom->x, geom->y);
+		xcb_translate_coordinates_reply_t *trans =
+				xcb_translate_coordinates_reply(connection, cookie2, NULL);
+		if (trans) {
+			result = (*env)->NewObject(env, javaRectClass, javaRectConstructor,
+									   (jint) trans->dst_x, (jint) trans->dst_y,
+									   (jint) geom->width, (jint) geom->height);
+			free(trans);
+		}
+		free(geom);
+	}
+#endif
+#ifdef USE_WINAPI
+	RECT rect;
+	if (GetWindowRect((HWND) (size_t) window, &rect)) {
+		result = (*env)->NewObject(env, javaRectClass, javaRectConstructor,
+				(jint) rect.left, (jint) rect.top, (jint) (rect.right - rect.left),
+				(jint) (rect.bottom - rect.top));
+	}
+#endif
+	return result;
 }

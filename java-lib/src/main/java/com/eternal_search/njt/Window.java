@@ -1,5 +1,7 @@
 package com.eternal_search.njt;
 
+import com.eternal_search.njt.geom.Rect;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -44,6 +46,10 @@ public class Window {
 		NativeFunctions.hideWindow(id);
 	}
 	
+	public Rect getBounds() {
+		return NativeFunctions.getWindowRect(id);
+	}
+	
 	public static Window getInstance(long id, boolean create) {
 		Window window = windows.getOrDefault(id, null);
 		if ((window == null) && create) {
@@ -59,7 +65,13 @@ public class Window {
 	protected void onClose() {
 	}
 	
-	protected void onMouseMove(int x, int y, int rootX, int rootY) {
+	protected void onMouseMove(int x, int y, int rootX, int rootY, int buttons) {
+	}
+	
+	protected void onMouseDown(int x, int y, int rootX, int rootY, int buttons) {
+	}
+	
+	protected void onMouseUp(int x, int y, int rootX, int rootY, int buttons) {
 	}
 	
 	private static void handleClose(long id) {
@@ -69,10 +81,24 @@ public class Window {
 		}
 	}
 	
-	private static void handleMouseMove(long id, int x, int y, int rootX, int rootY) {
+	private static void handleMouseMove(long id, int x, int y, int rootX, int rootY, int buttons) {
 		Window window = getInstance(id);
 		if (window != null) {
-			window.onMouseMove(x, y, rootX, rootY);
+			window.onMouseMove(x, y, rootX, rootY, buttons);
+		}
+	}
+	
+	private static void handleMouseDown(long id, int x, int y, int rootX, int rootY, int buttons) {
+		Window window = getInstance(id);
+		if (window != null) {
+			window.onMouseDown(x, y, rootX, rootY, buttons);
+		}
+	}
+	
+	private static void handleMouseUp(long id, int x, int y, int rootX, int rootY, int buttons) {
+		Window window = getInstance(id);
+		if (window != null) {
+			window.onMouseUp(x, y, rootX, rootY, buttons);
 		}
 	}
 	

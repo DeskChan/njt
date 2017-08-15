@@ -1,5 +1,7 @@
 package com.eternal_search.njt;
 
+import com.eternal_search.njt.geom.Rect;
+
 import java.io.File;
 
 final class NativeFunctions {
@@ -34,5 +36,7 @@ final class NativeFunctions {
 	static native void setWindowTitle(long window, String title);
 	
 	static native void moveWindow(long window, int x, int y, int width, int height);
+	
+	static native Rect getWindowRect(long window);
 	
 }
