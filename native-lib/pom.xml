@@ -90,12 +90,25 @@
 			<activation>
 				<os>
 					<family>windows</family>
-					<arch>amd64</arch>
+					<arch>i386</arch>
 				</os>
 			</activation>
 			<properties>
 				<cmake.classifier>windows-x86_32</cmake.classifier>
 				<platform.default_name>windows-x86</platform.default_name>
+			</properties>
+		</profile>
+		<profile>
+			<id>windows-x86_64</id>
+			<activation>
+				<os>
+					<family>windows</family>
+					<arch>amd64</arch>
+				</os>
+			</activation>
+			<properties>
+				<cmake.classifier>windows-x86_64</cmake.classifier>
+				<platform.default_name>windows-x86_64</platform.default_name>
 			</properties>
 		</profile>
 		<profile>
@@ -140,7 +153,7 @@
 		<profile>
 			<id>all-platforms</id>
 			<properties>
-				<platform.list>linux-x86_64;linux-x86;windows-x86</platform.list>
+				<platform.list>linux-x86_64;linux-x86;windows-x86;windows-x86_64</platform.list>
 				<cmake.extra_opts1>-DDUMMY1=1</cmake.extra_opts1>
 				<cmake.extra_opts2>-DDUMMY2=1</cmake.extra_opts2>
 			</properties>
