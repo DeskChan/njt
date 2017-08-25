@@ -208,6 +208,8 @@ JNIEXPORT void JNICALL Java_com_eternal_1search_njt_NativeFunctions_deInit(JNIEn
 #ifdef USE_WINAPI
 	UnregisterClass(WND_CLASS_NAME, hInstance);
 #endif
+	(*env)->DeleteGlobalRef(env, javaWindowClass);
+	(*env)->DeleteGlobalRef(env, javaRectClass);
 	javaEnv = NULL;
 }
 
