@@ -2,7 +2,6 @@ package com.eternal_search.njt;
 
 import com.eternal_search.njt.geom.Rect;
 
-import javax.print.attribute.standard.MediaSize;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -111,7 +110,13 @@ public class Window {
 		this.cachedBounds = newBounds;
 	}
 	
+	protected void paint() {
+	}
+	
 	protected void onPaint() {
+		beginPaint();
+		paint();
+		endPaint();
 	}
 	
 	protected boolean beginPaint() {

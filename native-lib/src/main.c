@@ -581,8 +581,6 @@ JNIEXPORT void JNICALL Java_com_eternal_1search_njt_NativeFunctions_beginUseOpen
 	GLContextInfo *info = (GLContextInfo*) (size_t) context;
 	wglMakeCurrent(info->hDC, info->hRC);
 #endif
-	glClearColor(0.2, 0.4, 0.9, 1.0);
-	glClear(GL_COLOR_BUFFER_BIT);
 }
 
 JNIEXPORT void JNICALL Java_com_eternal_1search_njt_NativeFunctions_endUseOpenGLContext(JNIEnv *env,

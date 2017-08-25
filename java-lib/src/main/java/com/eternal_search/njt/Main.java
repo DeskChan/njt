@@ -1,5 +1,9 @@
 package com.eternal_search.njt;
 
+import org.lwjgl.*;
+import org.lwjgl.opengl.*;
+import static org.lwjgl.opengl.GL11.*;
+
 import com.eternal_search.njt.geom.Point;
 import com.eternal_search.njt.geom.Rect;
 
@@ -52,11 +56,12 @@ public final class Main {
 			}
 			
 			@Override
-			protected void onPaint() {
-				beginPaint();
-				// TODO
-				endPaint();
+			protected void paint() {
+				GL.createCapabilities();
+				glClearColor(0.2f, 0.4f, 0.9f, 1.0f);
+				glClear(GL_COLOR_BUFFER_BIT);
 			}
+			
 		};
 		window.show();
 		window.setBounds(100, 100, 400, 300);
