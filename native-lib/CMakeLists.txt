@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.7)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
 project(toolkit)
 
+set(CMAKE_BUILD_TYPE Debug)
 message("-- CMAKE_TOOLCHAIN_FILE: ${CMAKE_TOOLCHAIN_FILE}")
 message("-- JAVA_HOME: ${JAVA_HOME}")
 

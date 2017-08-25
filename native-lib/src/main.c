@@ -160,7 +160,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 
 JNIEXPORT void JNICALL Java_com_eternal_1search_njt_NativeFunctions_init(JNIEnv *env, jclass cls) {
 	javaEnv = env;
-	javaWindowClass = (*env)->FindClass(env, "com/eternal_search/njt/Window");
+	jclass tmpClassRef = (*env)->FindClass(env, "com/eternal_search/njt/Window");
+	javaWindowClass = (*env)->NewGlobalRef(env, tmpClassRef);
+	(*env)->DeleteLocalRef(env, tmpClassRef);
 	javaWindowHandleCloseMethod = (*env)->GetStaticMethodID(env, javaWindowClass, "handleClose", "(J)V");
 	javaWindowHandleMouseMoveMethod = (*env)->GetStaticMethodID(env, javaWindowClass, "handleMouseMove",
 																"(JIIIII)V");
@@ -168,7 +170,9 @@ JNIEXPORT void JNICALL Java_com_eternal_1search_njt_NativeFunctions_init(JNIEnv 
 																"(JIIIII)V");
 	javaWindowHandleMouseUpMethod = (*env)->GetStaticMethodID(env, javaWindowClass, "handleMouseUp",
 																"(JIIIII)V");
-	javaRectClass = (*env)->FindClass(env, "com/eternal_search/njt/geom/Rect");
+	tmpClassRef = (*env)->FindClass(env, "com/eternal_search/njt/geom/Rect");
+	javaRectClass = (*env)->NewGlobalRef(env, tmpClassRef);
+	(*env)->DeleteLocalRef(env, tmpClassRef);
 	javaRectConstructor = (*env)->GetMethodID(env, javaRectClass, "<init>", "(IIII)V");
 #ifdef USE_XCB
 	fprintf(stderr, "NJT: Init (XCB backend)\n");
