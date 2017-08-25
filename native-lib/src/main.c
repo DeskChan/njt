@@ -19,7 +19,10 @@ jmethodID javaWindowHandleCloseMethod;
 jmethodID javaWindowHandleMouseMoveMethod;
 jmethodID javaWindowHandleMouseDownMethod;
 jmethodID javaWindowHandleMouseUpMethod;
+jmethodID javaWindowHandleKeyDownMethod;
+jmethodID javaWindowHandleKeyUpMethod;
 jmethodID javaWindowHandleBoundsChanged;
+jmethodID javaWindowHandlePaint;
 jclass javaRectClass;
 jmethodID javaRectConstructor;
 
@@ -42,18 +45,32 @@ void handleMouseUpEvent(jlong window, jint x, jint y, jint rootX, jint rootY, ji
 									 window, x, y, rootX, rootY, buttons);
 }
 
-void handleWindowBoundsChanged(jlong window, jint x, jint y, jint width, jint height) {
+void handleKeyDownEvent(jlong window, jint keyCode) {
+	(*javaEnv)->CallStaticVoidMethod(javaEnv, javaWindowClass, javaWindowHandleKeyDownMethod, window, keyCode);
+}
+
+void handleKeyUpEvent(jlong window, jint keyCode) {
+	(*javaEnv)->CallStaticVoidMethod(javaEnv, javaWindowClass, javaWindowHandleKeyUpMethod, window, keyCode);
+}
+
+void handleWindowBoundsChangedEvent(jlong window, jint x, jint y, jint width, jint height) {
 	(*javaEnv)->CallStaticVoidMethod(javaEnv, javaWindowClass, javaWindowHandleBoundsChanged,
 									 window, x, y, width, height);
+}
+
+void handlePaintEvent(jlong window) {
+	(*javaEnv)->CallStaticVoidMethod(javaEnv, javaWindowClass, javaWindowHandlePaint, window);
 }
 
 #ifdef USE_XCB
 
 #include <xcb/xcb.h>
 #include <xcb/xcb_icccm.h>
+#include <xcb/xcb_keysyms.h>
 
 xcb_connection_t *connection;
 xcb_screen_t *screen;
+int quit = 0;
 
 void handleEvent(xcb_generic_event_t *event) {
 	switch (event->response_type & ~0x80) {
@@ -62,7 +79,7 @@ void handleEvent(xcb_generic_event_t *event) {
 			break;
 		case XCB_CONFIGURE_NOTIFY: {
 			xcb_configure_notify_event_t *e = (xcb_configure_notify_event_t*) event;
-			handleWindowBoundsChanged((jlong) e->window, e->x, e->y, e->width, e->height);
+			handleWindowBoundsChangedEvent((jlong) e->window, e->x, e->y, e->width, e->height);
 			break;
 		}
 		case XCB_MOTION_NOTIFY: {
@@ -91,6 +108,31 @@ void handleEvent(xcb_generic_event_t *event) {
 			xcb_button_release_event_t *e = (xcb_button_release_event_t*) event;
 			handleMouseUpEvent((jlong) e->event, (jint) e->event_x, (jint) e->event_y,
 								 (jint) e->root_x, (jint) e->root_y, 1 << (e->detail - 1));
+			break;
+		}
+		case XCB_KEY_PRESS: {
+			xcb_key_press_event_t *e = (xcb_key_press_event_t*) event;
+			xcb_key_symbols_t *keysyms = xcb_key_symbols_alloc(connection);
+			if (keysyms) {
+				xcb_keysym_t keysym = xcb_key_symbols_get_keysym(keysyms, e->detail, 0);
+				xcb_key_symbols_free(keysyms);
+				handleKeyDownEvent((jlong) e->event, keysym);
+			}
+			break;
+		}
+		case XCB_KEY_RELEASE: {
+			xcb_key_press_event_t *e = (xcb_key_press_event_t*) event;
+			xcb_key_symbols_t *keysyms = xcb_key_symbols_alloc(connection);
+			if (keysyms) {
+				xcb_keysym_t keysym = xcb_key_symbols_get_keysym(keysyms, e->detail, 0);
+				xcb_key_symbols_free(keysyms);
+				handleKeyUpEvent((jlong) e->event, keysym);
+			}
+			break;
+		}
+		case XCB_EXPOSE: {
+			xcb_expose_event_t *e = (xcb_expose_event_t*) event;
+			handlePaintEvent((jlong) e->window);
 			break;
 		}
 		default:;
@@ -147,12 +189,13 @@ static void handleMouseEvent(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			handleMouseMoveEvent(wnd, x, y, rootPos.x, rootPos.y, buttons);
 			break;
 		}
+		default:;
 	}
 }
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 	switch (uMsg) {
-		case WM_CLOSE:
+		case WM_DESTROY:
 			handleCloseEvent((jlong) (size_t) hWnd);
 			break;
 		case WM_MOUSEMOVE:
@@ -164,11 +207,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 		case WM_MBUTTONUP:
 			handleMouseEvent(hWnd, uMsg, wParam, lParam);
 			return 0;
+		case WM_KEYDOWN:
+			handleKeyDownEvent((jlong) (size_t) hWnd, wParam);
+			return 0;
+		case WM_KEYUP:
+			handleKeyUpEvent((jlong) (size_t) hWnd, wParam);
+			return 0;
 		case WM_WINDOWPOSCHANGED: {
 			WINDOWPOS *pos = (WINDOWPOS*) lParam;
-			handleWindowBoundsChanged((jlong) (size_t) hWnd, pos->x, pos->y, pos->cx, pos->cy);
+			handleWindowBoundsChangedEvent((jlong) (size_t) hWnd, pos->x, pos->y, pos->cx, pos->cy);
 			break;
 		}
+		case WM_PAINT:
+			handlePaintEvent((jlong) (size_t) hWnd);
+			return 0;
 	}
 	return DefWindowProc(hWnd, uMsg, wParam, lParam);
 }
@@ -187,8 +239,13 @@ JNIEXPORT void JNICALL Java_com_eternal_1search_njt_NativeFunctions_init(JNIEnv 
 																"(JIIIII)V");
 	javaWindowHandleMouseUpMethod = (*env)->GetStaticMethodID(env, javaWindowClass, "handleMouseUp",
 																"(JIIIII)V");
+	javaWindowHandleKeyDownMethod = (*env)->GetStaticMethodID(env, javaWindowClass, "handleKeyDown",
+																"(JI)V");
+	javaWindowHandleKeyUpMethod = (*env)->GetStaticMethodID(env, javaWindowClass, "handleKeyUp",
+															  "(JI)V");
 	javaWindowHandleBoundsChanged = (*env)->GetStaticMethodID(env, javaWindowClass, "handleBoundsChanged",
 																"(JIIII)V");
+	javaWindowHandlePaint = (*env)->GetStaticMethodID(env, javaWindowClass, "handlePaint", "(J)V");
 	tmpClassRef = (*env)->FindClass(env, "com/eternal_search/njt/geom/Rect");
 	javaRectClass = (*env)->NewGlobalRef(env, tmpClassRef);
 	(*env)->DeleteLocalRef(env, tmpClassRef);
@@ -236,7 +293,7 @@ JNIEXPORT void JNICALL Java_com_eternal_1search_njt_NativeFunctions_runEventLoop
 #ifdef USE_XCB
 	xcb_flush(connection);
 	xcb_generic_event_t *event;
-	while ((event = xcb_wait_for_event(connection)) != NULL) {
+	while (!quit && ((event = xcb_wait_for_event(connection)) != NULL)) {
 		handleEvent(event);
 		free(event);
 		xcb_flush(connection);
@@ -253,7 +310,7 @@ JNIEXPORT void JNICALL Java_com_eternal_1search_njt_NativeFunctions_runEventLoop
 
 JNIEXPORT void JNICALL Java_com_eternal_1search_njt_NativeFunctions_quitEventLoop(JNIEnv *env, jclass cls) {
 #ifdef USE_XCB
-	// TODO
+	quit = 1;
 #endif
 #ifdef USE_WINAPI
 	PostQuitMessage(0);
@@ -271,7 +328,8 @@ JNIEXPORT jlong JNICALL Java_com_eternal_1search_njt_NativeFunctions_createWindo
 	xcb_window_t window = xcb_generate_id(connection);
 	uint32_t values[] = { XCB_EVENT_MASK_STRUCTURE_NOTIFY |  XCB_EVENT_MASK_POINTER_MOTION |
 								  XCB_EVENT_MASK_BUTTON_MOTION |
-			XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE };
+			XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_EXPOSURE |
+			XCB_EVENT_MASK_KEY_PRESS | XCB_EVENT_MASK_KEY_RELEASE };
 	xcb_create_window(connection, XCB_COPY_FROM_PARENT, window, (xcb_window_t) parent, x, y,
 					  (uint16_t) width, (uint16_t) height, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT,
 					  screen->root_visual, XCB_CW_EVENT_MASK, values);

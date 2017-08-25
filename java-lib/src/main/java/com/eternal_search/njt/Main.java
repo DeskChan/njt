@@ -12,7 +12,7 @@ public final class Main {
 		Window window = new Window("Java Native Toolkit Demo", 0, 0,
 				300, 200, 0) {
 			
-			Point lastMousePos;
+			private Point lastMousePos;
 			
 			@Override
 			protected void onClose() {
@@ -38,6 +38,13 @@ public final class Main {
 					Rect bounds = getBounds();
 					setBounds(bounds.move(bounds.getX() + deltaX, bounds.getY() + deltaY));
 					lastMousePos = new Point(rootX, rootY);
+				}
+			}
+			
+			@Override
+			protected void onKeyDown(int keyCode) {
+				if (keyCode == KeyCode.ESCAPE) {
+					NativeFunctions.quitEventLoop();
 				}
 			}
 			

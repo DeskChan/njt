@@ -8,6 +8,7 @@ import java.util.Map;
 public class Window {
 	
 	private static final Map<Long, Window> windows = new HashMap<Long, Window>();
+	static final Map<Integer, Integer> keyCodeMap = new HashMap<>();
 	
 	private final long id;
 	private final boolean managedByApplication;
@@ -89,8 +90,17 @@ public class Window {
 	protected void onMouseUp(int x, int y, int rootX, int rootY, int buttons) {
 	}
 	
+	protected void onKeyDown(int keyCode) {
+	}
+	
+	protected void onKeyUp(int keyCode) {
+	}
+	
 	protected void onBoundsChanged(Rect newBounds) {
 		this.cachedBounds = newBounds;
+	}
+	
+	protected void onPaint() {
 	}
 	
 	private static void handleClose(long id) {
@@ -121,10 +131,31 @@ public class Window {
 		}
 	}
 	
+	private static void handleKeyDown(long id, int keyCode) {
+		Window window = getInstance(id);
+		if (window != null) {
+			window.onKeyDown(keyCodeMap.getOrDefault(keyCode, keyCode));
+		}
+	}
+	
+	private static void handleKeyUp(long id, int keyCode) {
+		Window window = getInstance(id);
+		if (window != null) {
+			window.onKeyUp(keyCodeMap.getOrDefault(keyCode, keyCode));
+		}
+	}
+	
 	private static void handleBoundsChanged(long id, int x, int y, int width, int height) {
 		Window window = getInstance(id);
 		if (window != null) {
 			window.onBoundsChanged(new Rect(x, y, width, height));
+		}
+	}
+	
+	private static void handlePaint(long id) {
+		Window window = getInstance(id);
+		if (window != null) {
+			window.onPaint();
 		}
 	}
 	
@@ -135,6 +166,10 @@ public class Window {
 		
 		public static final int TOPLEVEL = 1 << 0;
 		
+	}
+	
+	static {
+		KeyCode.loadKeyCodeMap();
 	}
 	
 }
