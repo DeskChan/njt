@@ -3,6 +3,7 @@
 #include <string.h>
 #include "jni.h"
 #include <GL/gl.h>
+#include <GL/glu.h>
 
 #ifdef _WIN32
 #undef JNICALL
@@ -70,7 +71,6 @@ void handlePaintEvent(jlong window) {
 #include <xcb/xcb_icccm.h>
 #include <xcb/xcb_keysyms.h>
 #include <GL/glx.h>
-#include <tkPort.h>
 
 typedef struct GLXContextInfo {
 	GLXContext context;
