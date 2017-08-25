@@ -2,8 +2,8 @@ package com.eternal_search.njt.geom;
 
 public class Point {
 	
-	public int x;
-	public int y;
+	public final int x;
+	public final int y;
 	
 	public Point(int x, int y) {
 		this.x = x;
@@ -14,4 +14,5 @@ public class Point {
 	public String toString() {
 		return "Point(" + x + ", " + ")";
 	}
+	
 }

@@ -10,7 +10,7 @@ find_package(JNI REQUIRED)
 include_directories(${JNI_INCLUDE_DIRS})
 
 if (PLATFORM_NAME MATCHES "^linux")
-    find_package(XCB REQUIRED)
+    find_package(XCB REQUIRED COMPONENTS xcb-icccm)
     include_directories(${XCB_INCLUDE_DIRS})
     set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} ${XCB_DEFINITIONS})
 endif()

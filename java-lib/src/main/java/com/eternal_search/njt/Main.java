@@ -10,7 +10,7 @@ public final class Main {
 		NativeFunctions.loadLibrary();
 		NativeFunctions.init();
 		Window window = new Window("Java Native Toolkit Demo", 0, 0,
-				400, 300, 0) {
+				300, 200, 0) {
 			
 			Point lastMousePos;
 			
@@ -36,19 +36,14 @@ public final class Main {
 					int deltaX = rootX - lastMousePos.x;
 					int deltaY = rootY - lastMousePos.y;
 					Rect bounds = getBounds();
-					//System.out.println("Before: " + bounds);
-					bounds.adjustPos(deltaX, deltaY);
-					//System.out.println("After: " + bounds);
-					move(bounds.getX(), bounds.getY(), bounds.getWidth(), bounds.getHeight());
-					lastMousePos.x = rootX;
-					lastMousePos.y = rootY;
+					setBounds(bounds.move(bounds.getX() + deltaX, bounds.getY() + deltaY));
+					lastMousePos = new Point(rootX, rootY);
 				}
 			}
 			
 		};
 		window.show();
-		window.move(100, 100, 400, 300);
-		System.out.println(window.getBounds());
+		window.setBounds(100, 100, 400, 300);
 		NativeFunctions.runEventLoop();
 		window.destroy();
 		NativeFunctions.deInit();

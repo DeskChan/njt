@@ -19,6 +19,7 @@ jmethodID javaWindowHandleCloseMethod;
 jmethodID javaWindowHandleMouseMoveMethod;
 jmethodID javaWindowHandleMouseDownMethod;
 jmethodID javaWindowHandleMouseUpMethod;
+jmethodID javaWindowHandleBoundsChanged;
 jclass javaRectClass;
 jmethodID javaRectConstructor;
 
@@ -41,9 +42,15 @@ void handleMouseUpEvent(jlong window, jint x, jint y, jint rootX, jint rootY, ji
 									 window, x, y, rootX, rootY, buttons);
 }
 
+void handleWindowBoundsChanged(jlong window, jint x, jint y, jint width, jint height) {
+	(*javaEnv)->CallStaticVoidMethod(javaEnv, javaWindowClass, javaWindowHandleBoundsChanged,
+									 window, x, y, width, height);
+}
+
 #ifdef USE_XCB
 
 #include <xcb/xcb.h>
+#include <xcb/xcb_icccm.h>
 
 xcb_connection_t *connection;
 xcb_screen_t *screen;
@@ -53,6 +60,11 @@ void handleEvent(xcb_generic_event_t *event) {
 		case XCB_DESTROY_NOTIFY:
 			handleCloseEvent((jlong) ((xcb_destroy_notify_event_t*) event)->window);
 			break;
+		case XCB_CONFIGURE_NOTIFY: {
+			xcb_configure_notify_event_t *e = (xcb_configure_notify_event_t*) event;
+			handleWindowBoundsChanged((jlong) e->window, e->x, e->y, e->width, e->height);
+			break;
+		}
 		case XCB_MOTION_NOTIFY: {
 			xcb_motion_notify_event_t *e = (xcb_motion_notify_event_t*) event;
 			jint buttons = 0;
@@ -152,6 +164,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 		case WM_MBUTTONUP:
 			handleMouseEvent(hWnd, uMsg, wParam, lParam);
 			return 0;
+		case WM_WINDOWPOSCHANGED: {
+			WINDOWPOS *pos = (WINDOWPOS*) lParam;
+			handleWindowBoundsChanged((jlong) (size_t) hWnd, pos->x, pos->y, pos->cx, pos->cy);
+			break;
+		}
 	}
 	return DefWindowProc(hWnd, uMsg, wParam, lParam);
 }
@@ -170,6 +187,8 @@ JNIEXPORT void JNICALL Java_com_eternal_1search_njt_NativeFunctions_init(JNIEnv 
 																"(JIIIII)V");
 	javaWindowHandleMouseUpMethod = (*env)->GetStaticMethodID(env, javaWindowClass, "handleMouseUp",
 																"(JIIIII)V");
+	javaWindowHandleBoundsChanged = (*env)->GetStaticMethodID(env, javaWindowClass, "handleBoundsChanged",
+																"(JIIII)V");
 	tmpClassRef = (*env)->FindClass(env, "com/eternal_search/njt/geom/Rect");
 	javaRectClass = (*env)->NewGlobalRef(env, tmpClassRef);
 	(*env)->DeleteLocalRef(env, tmpClassRef);
@@ -220,6 +239,7 @@ JNIEXPORT void JNICALL Java_com_eternal_1search_njt_NativeFunctions_runEventLoop
 	while ((event = xcb_wait_for_event(connection)) != NULL) {
 		handleEvent(event);
 		free(event);
+		xcb_flush(connection);
 	}
 #endif
 #ifdef USE_WINAPI
@@ -249,7 +269,8 @@ JNIEXPORT jlong JNICALL Java_com_eternal_1search_njt_NativeFunctions_createWindo
 		parent = screen->root;
 	}
 	xcb_window_t window = xcb_generate_id(connection);
-	uint32_t values[] = { XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_BUTTON_MOTION |
+	uint32_t values[] = { XCB_EVENT_MASK_STRUCTURE_NOTIFY |  XCB_EVENT_MASK_POINTER_MOTION |
+								  XCB_EVENT_MASK_BUTTON_MOTION |
 			XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE };
 	xcb_create_window(connection, XCB_COPY_FROM_PARENT, window, (xcb_window_t) parent, x, y,
 					  (uint16_t) width, (uint16_t) height, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT,
@@ -319,6 +340,11 @@ JNIEXPORT void JNICALL Java_com_eternal_1search_njt_NativeFunctions_moveWindow(J
 																			   jint y, jint width,
 																			   jint height) {
 #ifdef USE_XCB
+	xcb_size_hints_t hints = {};
+	xcb_icccm_size_hints_set_win_gravity(&hints, XCB_GRAVITY_STATIC);
+	xcb_icccm_size_hints_set_position(&hints, 1, x, y);
+	xcb_icccm_size_hints_set_size(&hints, 1, width, height);
+	xcb_icccm_set_wm_normal_hints(connection, (xcb_window_t) window, &hints);
 	const uint32_t values[] = { (uint32_t) x, (uint32_t) y, (uint32_t) width, (uint32_t) height };
 	xcb_configure_window(connection, (xcb_window_t) window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y |
 			XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values);
@@ -333,6 +359,7 @@ JNIEXPORT jclass JNICALL Java_com_eternal_1search_njt_NativeFunctions_getWindowR
 																					jlong window) {
 	jclass result = 0;
 #ifdef USE_XCB
+	xcb_flush(connection);
 	xcb_get_geometry_cookie_t cookie1 = xcb_get_geometry(connection, (xcb_drawable_t) window);
 	xcb_get_geometry_reply_t *geom = xcb_get_geometry_reply(connection, cookie1, NULL);
 	if (geom) {
