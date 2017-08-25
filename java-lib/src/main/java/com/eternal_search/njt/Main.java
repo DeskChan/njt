@@ -8,7 +8,10 @@ public final class Main {
 	public static void main(String[] args) {
 		System.err.println("Platform ID: " + PlatformInfo.getPlatformId());
 		NativeFunctions.loadLibrary();
-		NativeFunctions.init();
+		if (!NativeFunctions.init()) {
+			System.err.println("Failed to initialize native backend!");
+			return;
+		}
 		Window window = new Window("Java Native Toolkit Demo", 0, 0,
 				300, 200, 0) {
 			
@@ -48,6 +51,12 @@ public final class Main {
 				}
 			}
 			
+			@Override
+			protected void onPaint() {
+				beginPaint();
+				// TODO
+				endPaint();
+			}
 		};
 		window.show();
 		window.setBounds(100, 100, 400, 300);

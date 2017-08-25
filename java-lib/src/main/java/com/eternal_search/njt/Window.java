@@ -2,6 +2,7 @@ package com.eternal_search.njt;
 
 import com.eternal_search.njt.geom.Rect;
 
+import javax.print.attribute.standard.MediaSize;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -11,8 +12,11 @@ public class Window {
 	static final Map<Integer, Integer> keyCodeMap = new HashMap<>();
 	
 	private final long id;
+	private long openGLContext = 0;
+	private boolean openGLContextCreated = false;
 	private final boolean managedByApplication;
 	private Rect cachedBounds = null;
+	private boolean visible = false;
 	
 	private Window(long id, boolean managedByApplication) {
 		this.id = id;
@@ -28,6 +32,8 @@ public class Window {
 	public Window(String title, int x, int y, int width, int height, int flags, int parent) {
 		this(NativeFunctions.createWindow(title, x, y, width, height, flags, parent), true);
 		cachedBounds = new Rect(x, y, width, height);
+		openGLContext = NativeFunctions.createOpenGLContext(id);
+		openGLContextCreated = true;
 	}
 	
 	public Window(String title, int x, int y, int width, int height, int flags) {
@@ -35,6 +41,9 @@ public class Window {
 	}
 	
 	public void destroy() {
+		if (openGLContextCreated) {
+			NativeFunctions.destroyOpenGLContext(id, openGLContext);
+		}
 		NativeFunctions.destroyWindow(id);
 		windows.remove(id);
 	}
@@ -45,10 +54,12 @@ public class Window {
 	
 	public void show() {
 		NativeFunctions.showWindow(id);
+		visible = true;
 	}
 	
 	public void hide() {
 		NativeFunctions.hideWindow(id);
+		visible = false;
 	}
 	
 	public Rect getBounds() {
@@ -101,6 +112,17 @@ public class Window {
 	}
 	
 	protected void onPaint() {
+	}
+	
+	protected boolean beginPaint() {
+		if (!openGLContextCreated) return false;
+		if (!visible) return false;
+		NativeFunctions.beginUseOpenGLContext(id, openGLContext);
+		return true;
+	}
+	
+	protected void endPaint() {
+		NativeFunctions.endUseOpenGLContext(id, openGLContext);
 	}
 	
 	private static void handleClose(long id) {

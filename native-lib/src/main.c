@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "jni.h"
+#include <GL/gl.h>
 
 #ifdef _WIN32
 #undef JNICALL
@@ -64,12 +65,25 @@ void handlePaintEvent(jlong window) {
 
 #ifdef USE_XCB
 
-#include <xcb/xcb.h>
+#include <X11/Xlib.h>
+#include <X11/Xlib-xcb.h>
 #include <xcb/xcb_icccm.h>
 #include <xcb/xcb_keysyms.h>
+#include <GL/glx.h>
+#include <tkPort.h>
 
+typedef struct GLXContextInfo {
+	GLXContext context;
+	GLXWindow window;
+} GLXContextInfo;
+
+Display *display;
 xcb_connection_t *connection;
 xcb_screen_t *screen;
+int screen_num;
+xcb_visualid_t visualID;
+xcb_colormap_t colormap;
+GLXFBConfig fb_config;
 int quit = 0;
 
 void handleEvent(xcb_generic_event_t *event) {
@@ -146,6 +160,11 @@ void handleEvent(xcb_generic_event_t *event) {
 #include <windows.h>
 
 #define WND_CLASS_NAME "NJT_WND"
+
+typedef struct GLContextInfo {
+	HDC hDC;
+	HGLRC hRC;
+} GLContextInfo;
 
 HINSTANCE hInstance;
 WNDCLASSEX wndClass;
@@ -227,7 +246,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 
 #endif
 
-JNIEXPORT void JNICALL Java_com_eternal_1search_njt_NativeFunctions_init(JNIEnv *env, jclass cls) {
+JNIEXPORT jboolean JNICALL Java_com_eternal_1search_njt_NativeFunctions_init(JNIEnv *env, jclass cls) {
 	javaEnv = env;
 	jclass tmpClassRef = (*env)->FindClass(env, "com/eternal_search/njt/Window");
 	javaWindowClass = (*env)->NewGlobalRef(env, tmpClassRef);
@@ -252,10 +271,47 @@ JNIEXPORT void JNICALL Java_com_eternal_1search_njt_NativeFunctions_init(JNIEnv 
 	javaRectConstructor = (*env)->GetMethodID(env, javaRectClass, "<init>", "(IIII)V");
 #ifdef USE_XCB
 	fprintf(stderr, "NJT: Init (XCB backend)\n");
-	connection = xcb_connect(NULL, NULL);
+	display = XOpenDisplay(NULL);
+	if (!display) {
+		fprintf(stderr, "Failed to open X11 display!\n");
+		return JNI_FALSE;
+	}
+	connection = XGetXCBConnection(display);
+	if (!connection) {
+		fprintf(stderr, "Failed to get XCB connection from X11 display!");
+		XCloseDisplay(display);
+		return JNI_FALSE;
+	}
+	XSetEventQueueOwner(display, XCBOwnsEventQueue);
 	const xcb_setup_t *setup = xcb_get_setup(connection);
 	struct xcb_screen_iterator_t iter = xcb_setup_roots_iterator(setup);
+	screen_num = DefaultScreen(display);
+	while (iter.rem && (screen_num > 0)) {
+		xcb_screen_next(&iter);
+		screen_num--;
+	}
 	screen = iter.data;
+	int num_fb_configs = 0;
+	GLXFBConfig *fb_configs = glXGetFBConfigs(display, screen_num, &num_fb_configs);
+	if (!fb_configs || !num_fb_configs) {
+		fprintf(stderr, "glXGetFBConfigs failed!\n");
+		XCloseDisplay(display);
+		return JNI_FALSE;
+	}
+	visualID = 0;
+	for (int i = 0; !visualID && (i < num_fb_configs); i++) {
+		fb_config = fb_configs[i];
+		XVisualInfo *visual = glXGetVisualFromFBConfig(display, fb_config);
+		if (!visual) continue;
+		visualID = visual->visualid;
+	}
+	if (!visualID) {
+		fprintf(stderr, "Failed to get VisualID!\n");
+		XCloseDisplay(display);
+		return JNI_FALSE;
+	}
+	colormap = xcb_generate_id(connection);
+	xcb_create_colormap(connection, XCB_COLORMAP_ALLOC_NONE, colormap, screen->root, visualID);
 #endif
 #ifdef USE_WINAPI
 	fprintf(stderr, "NJT: Init (WinAPI backend)\n");
@@ -274,12 +330,13 @@ JNIEXPORT void JNICALL Java_com_eternal_1search_njt_NativeFunctions_init(JNIEnv 
 	wndClass.hIconSm = NULL;
 	RegisterClassEx(&wndClass);
 #endif
+	return JNI_TRUE;
 }
 
 JNIEXPORT void JNICALL Java_com_eternal_1search_njt_NativeFunctions_deInit(JNIEnv *env, jclass cls) {
 	fprintf(stderr, "NJT: DeInit\n");
 #ifdef USE_XCB
-	xcb_disconnect(connection);
+	XCloseDisplay(display);
 #endif
 #ifdef USE_WINAPI
 	UnregisterClass(WND_CLASS_NAME, hInstance);
@@ -329,10 +386,10 @@ JNIEXPORT jlong JNICALL Java_com_eternal_1search_njt_NativeFunctions_createWindo
 	uint32_t values[] = { XCB_EVENT_MASK_STRUCTURE_NOTIFY |  XCB_EVENT_MASK_POINTER_MOTION |
 								  XCB_EVENT_MASK_BUTTON_MOTION |
 			XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_EXPOSURE |
-			XCB_EVENT_MASK_KEY_PRESS | XCB_EVENT_MASK_KEY_RELEASE };
+			XCB_EVENT_MASK_KEY_PRESS | XCB_EVENT_MASK_KEY_RELEASE, colormap };
 	xcb_create_window(connection, XCB_COPY_FROM_PARENT, window, (xcb_window_t) parent, x, y,
 					  (uint16_t) width, (uint16_t) height, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT,
-					  screen->root_visual, XCB_CW_EVENT_MASK, values);
+					  visualID, XCB_CW_EVENT_MASK | XCB_CW_COLORMAP, values);
 	xcb_change_property(connection, XCB_PROP_MODE_REPLACE, (xcb_window_t) window,
 						XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, (uint32_t) strlen(titleChars), titleChars);
 	result = window;
@@ -347,6 +404,73 @@ JNIEXPORT jlong JNICALL Java_com_eternal_1search_njt_NativeFunctions_createWindo
 #endif
 	(*env)->ReleaseStringChars(env, title, (const jchar*) titleChars);
 	return result;
+}
+
+JNIEXPORT jlong JNICALL Java_com_eternal_1search_njt_NativeFunctions_createOpenGLContext(JNIEnv *env, jclass cls,
+																						 jlong window) {
+#ifdef USE_XCB
+	GLXContextInfo *info = malloc(sizeof(GLXContextInfo));
+	info->context = glXCreateNewContext(display, fb_config, GLX_RGBA_TYPE, 0, True);
+	if (!info->context) {
+		fprintf(stderr, "glXCreateNewContext failed\n");
+	}
+	info->window = glXCreateWindow(display, fb_config, (xcb_window_t) window, 0);
+	if (!info->window) {
+		fprintf(stderr, "glXCreateWindow failed\n");
+	}
+	return (jlong) (size_t) info;
+#endif
+#ifdef USE_WINAPI
+	GLContextInfo *info = malloc(sizeof(GLContextInfo));
+	info->hDC = GetDC((HWND) (size_t) window);
+	static PIXELFORMATDESCRIPTOR pfd = {
+    	sizeof(PIXELFORMATDESCRIPTOR), // Size Of This Pixel Format Descriptor
+		1, // Version Number
+		PFD_DRAW_TO_WINDOW | // Format Must Support Window
+		PFD_SUPPORT_OPENGL | // Format Must Support OpenGL
+		PFD_DOUBLEBUFFER, // Must Support Double Buffering
+		PFD_TYPE_RGBA, // Request An RGBA Format
+		32, // Select Our Color Depth
+		0, 0, 0, 0, 0, 0, // Color Bits Ignored
+		0, // No Alpha Buffer
+		0, // Shift Bit Ignored
+		0, // No Accumulation Buffer
+		0, 0, 0, 0, // Accumulation Bits Ignored
+		16, // 16Bit Z-Buffer (Depth Buffer)
+		0, // No Stencil Buffer
+		0, // No Auxiliary Buffer
+		PFD_MAIN_PLANE, // Main Drawing Layer
+		0, // Reserved
+		0, 0, 0 // Layer Masks Ignored
+	};
+	GLuint pixelFormat = ChoosePixelFormat(info->hDC, &pfd);
+	if (!pixelFormat) {
+		fprintf(stderr, "ChoosePixelFormat failed\n");
+	}
+	SetPixelFormat(info->hDC, pixelFormat, &pfd);
+	info->hRC = wglCreateContext(info->hDC);
+	if (!info->hRC) {
+		fprintf(stderr, "wglCreateContext failed\n");
+	}
+	return (jlong) (size_t) info;
+#endif
+}
+
+JNIEXPORT void JNICALL Java_com_eternal_1search_njt_NativeFunctions_destroyOpenGLContext(JNIEnv *env, jclass cls,
+																						 jlong window,
+																						 jlong context) {
+#ifdef USE_XCB
+	GLXContextInfo *info = (GLXContextInfo*) (size_t) context;
+	glXDestroyWindow(display, info->window);
+	glXDestroyContext(display, info->context);
+	free(info);
+#endif
+#ifdef USE_WINAPI
+	GLContextInfo *info = (GLContextInfo*) (size_t) context;
+	wglDeleteContext(info->hRC);
+	ReleaseDC((HWND) (size_t) window, info->hDC);
+	free(info);
+#endif
 }
 
 JNIEXPORT void JNICALL Java_com_eternal_1search_njt_NativeFunctions_destroyWindow(JNIEnv *env, jclass cls,
@@ -444,4 +568,33 @@ JNIEXPORT jclass JNICALL Java_com_eternal_1search_njt_NativeFunctions_getWindowR
 	}
 #endif
 	return result;
+}
+
+JNIEXPORT void JNICALL Java_com_eternal_1search_njt_NativeFunctions_beginUseOpenGLContext(JNIEnv *env,
+																					jclass cls,
+																					jlong window, jlong context) {
+#ifdef USE_XCB
+	GLXContextInfo *info = (GLXContextInfo*) (size_t) context;
+	glXMakeContextCurrent(display, info->window, info->window, info->context);
+#endif
+#ifdef USE_WINAPI
+	GLContextInfo *info = (GLContextInfo*) (size_t) context;
+	wglMakeCurrent(info->hDC, info->hRC);
+#endif
+	glClearColor(0.2, 0.4, 0.9, 1.0);
+	glClear(GL_COLOR_BUFFER_BIT);
+}
+
+JNIEXPORT void JNICALL Java_com_eternal_1search_njt_NativeFunctions_endUseOpenGLContext(JNIEnv *env,
+																						  jclass cls,
+																						  jlong window, jlong context) {
+#ifdef USE_XCB
+	GLXContextInfo *info = (GLXContextInfo*) (size_t) context;
+	glXSwapBuffers(display, info->window);
+#endif
+#ifdef USE_WINAPI
+	GLContextInfo *info = (GLContextInfo*) (size_t) context;
+	SwapBuffers(info->hDC);
+	wglMakeCurrent(NULL, NULL);
+#endif
 }

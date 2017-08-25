@@ -16,7 +16,7 @@ final class NativeFunctions {
 		System.load(toolkitLibrary);
 	}
 	
-	static native void init();
+	static native boolean init();
 	
 	static native void deInit();
 	
@@ -38,5 +38,13 @@ final class NativeFunctions {
 	static native void moveWindow(long window, int x, int y, int width, int height);
 	
 	static native Rect getWindowRect(long window);
+	
+	static native long createOpenGLContext(long window);
+	
+	static native long destroyOpenGLContext(long window, long context);
+	
+	static native long beginUseOpenGLContext(long window, long context);
+	
+	static native long endUseOpenGLContext(long window, long context);
 	
 }
