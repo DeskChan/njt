@@ -9,3 +9,4 @@ jdks
 
 target
 *build*
+.gradle/*

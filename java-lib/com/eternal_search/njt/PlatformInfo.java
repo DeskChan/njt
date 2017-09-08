@@ -53,7 +53,12 @@ public class PlatformInfo {
 	}
 	
 	private static void detect() {
-		toolkitDirectory = new File(Main.class.getProtectionDomain().getCodeSource().getLocation().getPath()).getParent();
+		String classSource = Main.class.getProtectionDomain().getCodeSource().getLocation().getPath();
+		if (classSource.endsWith(".jar")) {
+			toolkitDirectory = new File(Main.class.getProtectionDomain().getCodeSource().getLocation().getPath()).getParent();
+		} else {
+			toolkitDirectory = new File(new File(new File(Main.class.getProtectionDomain().getCodeSource().getLocation().getPath()).getParent()).getParent()).getParent() + File.separator + "libs";
+		}
 		detectOS();
 		detectArch();
 		if (osId.equals("windows")) {
