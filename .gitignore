@@ -8,5 +8,6 @@ Thumbs.db
 jdks
 
 target
-*build*
+build/*
+out/*
 .gradle/*

@@ -1,0 +1,82 @@
+plugins {
+    id 'com.stehno.natives' version '0.3.1'
+}
+
+group 'com.eternal_search'
+version '1.0-SNAPSHOT'
+
+apply plugin: 'java'
+
+sourceCompatibility = 1.8
+
+def buildPlatforms = [
+        "linux-x86_64",
+        "linux-x86",
+        "windows-x86",
+        "windows-x86_64"
+]
+
+def javaHomesBase = "${project.rootDir}/jdks"
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile "org.lwjgl:lwjgl:3.1.2"
+    runtime "org.lwjgl:lwjgl:3.1.2:natives-linux"
+    compile "org.lwjgl:lwjgl-glfw:3.1.2"
+    runtime "org.lwjgl:lwjgl-glfw:3.1.2:natives-linux"
+    compile "org.lwjgl:lwjgl-opengl:3.1.2"
+    runtime "org.lwjgl:lwjgl-opengl:3.1.2:natives-linux"
+}
+
+task buildNatives {
+    mkdir "${project.buildDir}/native-lib"
+
+    for (platform in buildPlatforms) {
+        mkdir "${project.buildDir}/native-lib/${platform}"
+
+        exec {
+            workingDir "${project.buildDir}/native-lib/${platform}"
+            commandLine "cmake", "-DJAVA_HOME=${javaHomesBase}/${platform}", "-DCMAKE_TOOLCHAIN_FILE=${project.rootDir}/native-lib/toolchains/${platform}.cmake", "-DPLATFORM_NAME=${platform}", "${project.rootDir}/native-lib"
+        }
+
+        exec {
+            workingDir "${project.buildDir}/native-lib/${platform}"
+            commandLine "make"
+        }
+    }
+}
+
+// TODO: detect platform and copy natives for it
+task copyNatives(type: Copy) {
+    for (platform in buildPlatforms) {
+        from "${project.buildDir}/native-lib/${platform}/libtoolkit-${platform}.${platform in ["windows-x86", "windows-x86_64"] ? "dll" : "so"}"
+    }
+    into "${project.buildDir}/libs"
+}
+
+task runNjt(dependsOn: ['classes'], type: JavaExec) {
+    main = 'com.eternal_search.njt.Main'
+    classpath = sourceSets.main.runtimeClasspath
+}
+
+copyNatives.dependsOn buildNatives
+build.dependsOn copyNatives
+runNjt.dependsOn build
+runNjt.dependsOn includeNatives
+
+sourceSets {
+    main {
+        java {
+            srcDirs += "java-lib"
+        }
+    }
+}
+
+natives {
+    configurations = ['compile', 'runtime']
+    platforms = com.stehno.gradle.natives.ext.Platform.all()
+    outputDir = 'natives'
+}
